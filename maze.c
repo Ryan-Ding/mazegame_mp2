@@ -52,7 +52,7 @@
 
 
 /* Set to 1 to remove all walls as a debugging aid. (Nate Taylor, S07). */
-#define GOD_MODE 0
+#define GOD_MODE 1
 
 
 /* local functions--see function headers for details */
@@ -763,6 +763,20 @@ add_a_fruit ()
     return n_fruits;
 }
 
+/* 
+ * get_fruit_num
+ *   DESCRIPTION: get the current fruit number
+ *   INPUTS: none
+ *   OUTPUTS: none
+ *   RETURN VALUE: number of fruits
+ */
+int
+get_fruit_num ()
+{
+
+    /* Return the current number of fruits in the maze. */
+    return n_fruits;
+}
 
 /* 
  * add_a_fruit_internal

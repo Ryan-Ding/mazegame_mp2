@@ -85,9 +85,9 @@ static unsigned short mode_X_seq[NUM_SEQUENCER_REGS] = {
 };
 static unsigned short mode_X_CRTC[NUM_CRTC_REGS] = {
     0x5F00, 0x4F01, 0x5002, 0x8203, 0x5404, 0x8005, 0xBF06, 0x1F07,
-    0x0008, 0x4109, 0x000A, 0x000B, 0x000C, 0x000D, 0x000E, 0x000F,
+    0x0008, 0x0109, 0x000A, 0x000B, 0x000C, 0x000D, 0x000E, 0x000F,
     0x9C10, 0x8E11, 0x8F12, 0x2813, 0x0014, 0x9615, 0xB916, 0xE317,
-    0xFF18
+    0x6B18
 };
 static unsigned char mode_X_attr[NUM_ATTR_REGS * 2] = {
     0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03, 
@@ -138,6 +138,7 @@ static void fill_palette ();
 static void write_font_data ();
 static void set_text_mode_3 (int clear_scr);
 static void copy_image (unsigned char* img, unsigned short scr_addr);
+static void copy_status_bar(unsigned char* img, unsigned short scr_addr);
 
 
 /* 
@@ -301,7 +302,8 @@ set_mode_X (void (*horiz_fill_fn) (int, int, unsigned char[SCROLL_X_DIM]),
     }
 
     /* One display page goes at the start of video memory. */
-    target_img = 0x0000; 
+    //target_img = 0x0000;
+    target_img = 320 * 18; 
 
     /* Map video memory and obtain permission for VGA port access. */
     if (open_memory_and_ports () == -1)
@@ -526,6 +528,21 @@ show_screen ()
     OUTW (0x03D4, ((target_img & 0x00FF) << 8) | 0x0D);
 }
 
+void show_status_bar(char * msg, const char* typing, const char* room){
+  unsigned char buf[STATUS_BAR_SIZE];
+
+  //call fill_buffer in text.c to prepare the buffer
+  fill_buffer(msg, buf, typing, room);
+
+  //draw to each plane to video memory
+  int i;
+  for (i=0; i<4; i++){
+    SET_WRITE_MASK(1 << (i+8));
+    copy_status_bar (buf + STATUS_BAR_SIZE/4*i, 0x0000);
+
+  }
+}
+
 
 /*
  * clear_screens
@@ -614,6 +631,74 @@ draw_full_block (int pos_x, int pos_y, unsigned char* blk)
 }
 
 
+/*
+ * draw_full_block
+ *   DESCRIPTION: Draw a BLOCK_X_DIM x BLOCK_Y_DIM block at absolute 
+ *                coordinates.  Mask any portion of the block not inside 
+ *                the logical view window.
+ *   INPUTS: (pos_x,pos_y) -- coordinates of upper left corner of block
+ *           blk -- image data for block (one byte per pixel, as a C array
+ *                  of dimensions [BLOCK_Y_DIM][BLOCK_X_DIM])
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECTS: draws into the build buffer
+ */   
+void
+save_old_floor (int pos_x, int pos_y, unsigned char* blk)
+{
+    int dx, dy;          /* loop indices for x and y traversal of block */
+    int x_left, x_right; /* clipping limits in horizontal dimension     */
+    int y_top, y_bottom; /* clipping limits in vertical dimension       */
+
+    /* If block is completely off-screen, we do nothing. */
+    if (pos_x + BLOCK_X_DIM <= show_x || pos_x >= show_x + SCROLL_X_DIM ||
+        pos_y + BLOCK_Y_DIM <= show_y || pos_y >= show_y + SCROLL_Y_DIM)
+  return;
+   
+    /* Clip any pixels falling off the left side of screen. */
+    if ((x_left = show_x - pos_x) < 0)
+        x_left = 0;
+    /* Clip any pixels falling off the right side of screen. */
+    if ((x_right = show_x + SCROLL_X_DIM - pos_x) > BLOCK_X_DIM)
+        x_right = BLOCK_X_DIM;
+    /* Skip the first x_left pixels in both screen position and block data. */
+    pos_x += x_left;
+    blk += x_left;
+    /* 
+     * Adjust x_right to hold the number of pixels to be drawn, and x_left
+     * to hold the amount to skip between rows in the block, which is the
+     * sum of the original left clip and (BLOCK_X_DIM - the original right 
+     * clip).
+     */
+    x_right -= x_left;
+    x_left = BLOCK_X_DIM - x_right; 
+
+    /* Clip any pixels falling off the top of the screen. */
+    if ((y_top = show_y - pos_y) < 0)
+        y_top = 0;
+    /* Clip any pixels falling off the bottom of the screen. */
+    if ((y_bottom = show_y + SCROLL_Y_DIM - pos_y) > BLOCK_Y_DIM)
+        y_bottom = BLOCK_Y_DIM;
+    /* 
+     * Skip the first y_left pixel in screen position and the first
+     * y_left rows of pixels in the block data.
+     */
+    pos_y += y_top;
+    blk += y_top * BLOCK_X_DIM;
+    /* Adjust y_bottom to hold the number of pixel rows to be drawn. */
+    y_bottom -= y_top;
+
+    /* Draw the clipped image. */
+    for (dy = 0; dy < y_bottom; dy++, pos_y++) {
+  for (dx = 0; dx < x_right; dx++, pos_x++, blk++)
+      *blk = *(img3 + (pos_x >> 2) + pos_y * SCROLL_X_WIDTH +
+        (3 - (pos_x & 3)) * SCROLL_SIZE);
+  pos_x -= x_right;
+  blk += x_left;
+    }
+}
+
+
 /* 
  * The functions inside the preprocessor block below rely on functions
  * in maze.c to generate graphical images of the maze.  These functions
@@ -641,6 +726,34 @@ int
 draw_vert_line (int x)
 {
     /* to be written... */
+    unsigned char buf[SCROLL_Y_DIM];  /* buffer for graphical image of line */
+    unsigned char* addr;  /* address of first pixel in build    */
+
+    int p_off; /* offset of plane of first pixel     */
+    int i;  /* loop index over pixels             */
+
+ /* Check whether requested line falls in the logical view window. */
+    if(x<0 || x>= SCROLL_X_DIM)
+        return -1;
+
+ /* Adjust x to the logical row value. */
+    x = x + show_x;
+
+    /* Get the image of the line. */
+    (*vert_line_fn) (x,show_y,buf);
+
+     /* Calculate starting address in build buffer. */
+    addr = img3 + (x>>2) + show_y*SCROLL_X_WIDTH;
+
+     /* Calculate plane offset of first pixel. */
+    p_off=( 3 - (x & 3));
+    
+
+    /* Copy image data into appropriate planes in build buffer. */
+    for( i=0; i< SCROLL_Y_DIM; i++) {
+        addr[p_off * SCROLL_SIZE + i*SCROLL_X_WIDTH] = buf[i];
+    }
+
     return 0;
 }
 
@@ -1009,13 +1122,42 @@ copy_image (unsigned char* img, unsigned short scr_addr)
      */
     asm volatile (
         "cld                                                 ;"
-       	"movl $16000,%%ecx                                   ;"
+       	"movl $14560,%%ecx                                   ;"
        	"rep movsb    # copy ECX bytes from M[ESI] to M[EDI]  "
       : /* no outputs */
       : "S" (img), "D" (mem_image + scr_addr) 
       : "eax", "ecx", "memory"
     );
 }
+
+/*
+ * copy_status_bar
+ *   DESCRIPTION: Copy one plane of the status bar from the build buffer to the 
+ *                video memory.
+ *   INPUTS: img -- a pointer to a single screen plane in the build buffer
+ *           scr_addr -- the destination offset in video memory
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECTS: copies a plane from the build buffer to video memory
+ */   
+static void
+copy_status_bar(unsigned char* img, unsigned short scr_addr)
+{
+    /* 
+     * memcpy is actually probably good enough here, and is usually
+     * implemented using ISA-specific features like those below,
+     * but the code here provides an example of x86 string moves
+     */
+    asm volatile (
+        "cld                                                 ;"
+        "movl $1440, %%ecx                                   ;"
+        "rep movsb    # copy ECX bytes from M[ESI] to M[EDI]  "
+      : /* no outputs */
+      : "S" (img), "D" (mem_image + scr_addr) 
+      : "eax", "ecx", "memory"
+    );
+}
+
 
 
 #if defined(TEXT_RESTORE_PROGRAM)

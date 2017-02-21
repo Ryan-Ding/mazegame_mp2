@@ -435,13 +435,21 @@ static void *rtc_thread(void *arg)
 	int ticks = 0;
 	int level;
 	int ret;
+	int i;
+	char str[50];
+	char str1[50];
+	unsigned char myBuffer[BLOCK_X_DIM*BLOCK_Y_DIM];
+	//unsigned char* myFloor = (unsigned char*)blocks[BLOCK_EMPTY];
+	unsigned char savedFloor[BLOCK_X_DIM*BLOCK_Y_DIM];
 	int open[NUM_DIRS];
 	int need_redraw = 0;
 	int goto_next_level = 0;
+	int myTimer, minute, minute1, minute2, second, second1, second2;
 
 	// Loop over levels until a level is lost or quit.
 	for (level = 1; (level <= MAX_LEVEL) && (quit_flag == 0); level++)
 	{
+		int temp=level;
 		// Prepare for the level.  If we fail, just let the player win.
 		if (prepare_maze_level (level) != 0)
 			break;
@@ -465,8 +473,30 @@ static void *rtc_thread(void *arg)
 		// Show maze around the player's original position
 		(void)unveil_around_player (play_x, play_y);
 
-		draw_full_block (play_x, play_y, get_player_block(last_dir));
+		save_old_floor(play_x, play_y, savedFloor);
+
+		   			for(i=0; i<BLOCK_X_DIM*BLOCK_Y_DIM; i++)
+		   			{
+		   				if(get_player_mask(last_dir)[i])
+		   					myBuffer[i]=get_player_block(last_dir)[i];
+		   				else myBuffer[i]=savedFloor[i];
+		   			}
+					draw_full_block (play_x, play_y, myBuffer);
+
 		show_screen();
+		draw_full_block (play_x, play_y, savedFloor);
+		//show_screen();
+
+		(void)pthread_mutex_lock (&mtx);
+
+		const char typing[20]="hello";
+		//get the messages and inputs to pass write to the status bar
+		int fruitNum = get_fruit_num();
+		sprintf(str, "Level %d   %d fruits   00:00", temp, fruitNum);
+		//sprintf(str1, "level %d", typing);
+		show_status_bar(str, str, typing);
+
+		(void)pthread_mutex_unlock (&mtx);
 
 		// get first Periodic Interrupt
 		ret = read(fd, &data, sizeof(unsigned long));
@@ -482,6 +512,24 @@ static void *rtc_thread(void *arg)
 			ticks = data >> 8;	
 
 			total += ticks;
+
+			pthread_mutex_lock(&mtx);
+			fruitNum=get_fruit_num();
+			myTimer = total/128;
+
+			minute = myTimer/60;
+			minute1 = minute % 10;
+			minute2 = minute / 10;
+
+			second = myTimer % 60;
+			second1 = second % 10;
+			second2 = second / 10;
+			//printf("%d\n", level);
+
+			sprintf(str, "Level %d   %d fruits   %d%d:%d%d", temp, fruitNum, minute2, minute1, second2, second1);
+			show_status_bar(str, str1, typing);
+			pthread_mutex_unlock(&mtx);
+
 
 			// If the system is completely overwhelmed we better slow down:
 			if (ticks > 8) ticks = 8;
@@ -582,11 +630,31 @@ static void *rtc_thread(void *arg)
 						move_left (&play_x);  
 						break;
 		   			}
-					draw_full_block (play_x, play_y, get_player_block(last_dir));	
+
+		   			save_old_floor(play_x, play_y, savedFloor);
+
+		   			for(i=0; i<BLOCK_X_DIM*BLOCK_Y_DIM; i++)
+		   			{
+		   				if(get_player_mask(last_dir)[i])
+		   				{
+		   					myBuffer[i]=get_player_block(last_dir)[i];
+		   				}
+		   				else 
+		   					{
+		   						myBuffer[i]=savedFloor[i];
+		   					}
+		   			}	
 					need_redraw = 1;
 				}
 			}
-			if (need_redraw) show_screen();	
+			
+			if (need_redraw) 
+				{
+					draw_full_block (play_x, play_y, myBuffer);
+					show_screen();
+					draw_full_block (play_x, play_y, savedFloor);
+					//show_screen();
+				}	
 			need_redraw = 0;
 		}	
 	}
@@ -606,7 +674,7 @@ int main()
 {
 	int ret;
    	struct termios tio_new;
-	unsigned long update_rate = 32; /* in Hz */
+	unsigned long update_rate = 128; /* in Hz */
 
 	pthread_t tid1;
 	pthread_t tid2;

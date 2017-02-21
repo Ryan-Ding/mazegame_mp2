@@ -91,6 +91,9 @@ extern int check_for_win (int x, int y);
 /* add a new fruit randomly in the maze */
 extern int add_a_fruit ();
 
+/*get the current fruit number*/
+extern int get_fruit_num();
+
 /* get pointer to the player's block image; depends on direction of motion */
 extern unsigned char* get_player_block (dir_t cur_dir);
 
