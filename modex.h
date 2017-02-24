@@ -126,11 +126,13 @@ extern void set_view_window (int scr_x, int scr_y);
 extern void show_screen ();
 
 /*show the status bar on the monitor*/
-extern void show_status_bar(char * msg, const char* typing, const char* room);
+extern void show_status_bar(char * msg, const char* typing, int level);
 
 
 /* clear the video memory in mode X */
 extern void clear_screens ();
+
+extern void fill_my_palette (int level);
 
 /*
  * draw a 12x12 block with upper left corner at logical position

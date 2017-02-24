@@ -38,8 +38,10 @@
 #include "text.h"
 #include "modex.h"
 
-#define BACKGROUND_COLOR 0x06
-#define FONT_COLOR 60
+#define BACKGROUND_COLOR 7
+#define FONT_COLOR 32
+#define BACKGROUND_COLOR2 10
+#define BACKGROUND_COLOR3 20
 #define TEST_LAST_BIT 0x01
 #define PLANE_NUM 4
 
@@ -570,7 +572,7 @@ unsigned char font_data[256][16] = {
 
 
 
-void fill_buffer (char * str, unsigned char* buf, const char* typing, const char*room){
+void fill_buffer (char * str, unsigned char* buf, int level, const char*room){
     int start_point = (IMAGE_X_DIM-(FONT_WIDTH*strlen(str)))/2;
     int x_start;
     int i,j;
@@ -581,7 +583,20 @@ void fill_buffer (char * str, unsigned char* buf, const char* typing, const char
     unsigned char cur_char;
 
     for( i=0; i<STATUS_BAR_SIZE; i++)
+    {
+        if (level%3==1)
+        {
         buf[i] = BACKGROUND_COLOR;
+        }
+        else if (level % 3 ==2)
+        {
+            buf[i] = BACKGROUND_COLOR2;
+        }
+        else
+        {
+            buf[i] = BACKGROUND_COLOR3;
+        }
+    }
 
     //draw fruits number left
     //first check if there's any input status message

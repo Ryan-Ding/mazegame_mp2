@@ -442,13 +442,14 @@ static void *rtc_thread(void *arg)
 	//unsigned char* myFloor = (unsigned char*)blocks[BLOCK_EMPTY];
 	unsigned char savedFloor[BLOCK_X_DIM*BLOCK_Y_DIM];
 	int open[NUM_DIRS];
-	int need_redraw = 0;
+	int need_redraw = 1;
 	int goto_next_level = 0;
 	int myTimer, minute, minute1, minute2, second, second1, second2;
 
 	// Loop over levels until a level is lost or quit.
 	for (level = 1; (level <= MAX_LEVEL) && (quit_flag == 0); level++)
 	{
+		fill_my_palette(level);
 		int temp=level;
 		// Prepare for the level.  If we fail, just let the player win.
 		if (prepare_maze_level (level) != 0)
@@ -489,12 +490,11 @@ static void *rtc_thread(void *arg)
 
 		(void)pthread_mutex_lock (&mtx);
 
-		const char typing[20]="hello";
 		//get the messages and inputs to pass write to the status bar
 		int fruitNum = get_fruit_num();
 		sprintf(str, "Level %d   %d fruits   00:00", temp, fruitNum);
 		//sprintf(str1, "level %d", typing);
-		show_status_bar(str, str, typing);
+		show_status_bar(str, str, level);
 
 		(void)pthread_mutex_unlock (&mtx);
 
@@ -527,7 +527,7 @@ static void *rtc_thread(void *arg)
 			//printf("%d\n", level);
 
 			sprintf(str, "Level %d   %d fruits   %d%d:%d%d", temp, fruitNum, minute2, minute1, second2, second1);
-			show_status_bar(str, str1, typing);
+			show_status_bar(str, str1, level);
 			pthread_mutex_unlock(&mtx);
 
 
@@ -637,7 +637,34 @@ static void *rtc_thread(void *arg)
 		   			{
 		   				if(get_player_mask(last_dir)[i])
 		   				{
-		   					myBuffer[i]=get_player_block(last_dir)[i];
+		   					if(get_player_block(last_dir)[i]==0x20)
+		   					{
+		   						myBuffer[i]=total%0x10;
+		   					}
+		   					else
+		   						myBuffer[i]=get_player_block(last_dir)[i];
+		   				}
+		   				else 
+		   					{
+		   						myBuffer[i]=savedFloor[i];
+		   					}
+		   			}	
+					need_redraw = 1;
+				}
+				else
+				{
+					save_old_floor(play_x, play_y, savedFloor);
+
+		   			for(i=0; i<BLOCK_X_DIM*BLOCK_Y_DIM; i++)
+		   			{
+		   				if(get_player_mask(last_dir)[i])
+		   				{
+		   					if(get_player_block(last_dir)[i]==0x20)
+		   					{
+		   						myBuffer[i]=total%0x10;
+		   					}
+		   					else
+		   						myBuffer[i]=get_player_block(last_dir)[i];
 		   				}
 		   				else 
 		   					{
@@ -647,7 +674,7 @@ static void *rtc_thread(void *arg)
 					need_redraw = 1;
 				}
 			}
-			
+
 			if (need_redraw) 
 				{
 					draw_full_block (play_x, play_y, myBuffer);
@@ -655,7 +682,7 @@ static void *rtc_thread(void *arg)
 					draw_full_block (play_x, play_y, savedFloor);
 					//show_screen();
 				}	
-			need_redraw = 0;
+			//need_redraw = 0;
 		}	
 	}
 	if (quit_flag == 0) winner = 1;

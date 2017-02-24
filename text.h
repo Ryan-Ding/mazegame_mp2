@@ -43,6 +43,6 @@
 /* Standard VGA text font. */
 extern unsigned char font_data[256][16];
 
-extern void fill_buffer(char *, unsigned char *, const char *, const char*);
+extern void fill_buffer(char * str, unsigned char * buf, int level, const char* room);
 
 #endif /* TEXT_H */
