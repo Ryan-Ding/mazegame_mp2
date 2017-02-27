@@ -571,6 +571,16 @@ unsigned char font_data[256][16] = {
 };
 
 
+/*
+ * fill_buffer
+ *   DESCRIPTION: prepare buffer for video memory
+ *   INPUTS: status message, buffer, typing, room name
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECT: put corresponding ASCII chars in the buffer
+ */ 
+
+
 
 void fill_buffer (char * str, unsigned char* buf, int level, const char*room){
     int start_point = (IMAGE_X_DIM-(FONT_WIDTH*strlen(str)))/2;
@@ -582,6 +592,7 @@ void fill_buffer (char * str, unsigned char* buf, int level, const char*room){
     int temp;
     unsigned char cur_char;
 
+//fill different background colors for different levels
     for( i=0; i<STATUS_BAR_SIZE; i++)
     {
         if (level%3==1)
@@ -629,6 +640,76 @@ void fill_buffer (char * str, unsigned char* buf, int level, const char*room){
                     p_off=j & 3;
                     //calculate the offset in the buffer and then color that pixel with font color
                     buf[STATUS_BAR_PLANE_SIZE*p_off+i*IMAGE_X_WIDTH+(x_start+j)/PLANE_NUM]=FONT_COLOR;
+                }
+                //right shift character 1 bit to prepare next comparison
+                cur_char=cur_char>>1;
+            }
+
+        }
+
+        //update the character index
+            curr++;
+    }
+
+}
+
+    return;
+
+}
+
+
+/*
+ * fill_floating
+ *   DESCRIPTION: prepare buffer for video memory of floating area
+ *   INPUTS: status message, buffer, typing, room name
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECT: put corresponding ASCII chars in the buffer
+ */ 
+
+
+
+void fill_floating (char * str, unsigned char* buf, int level, const char*room){
+    int start_point =0;
+    int x_start;
+    int i,j;
+    int curr=0;
+    int char_index;
+    //int p_off;
+    //int counter=0;
+    int temp;
+    unsigned char cur_char;
+
+
+
+    //draw fruits number left
+    //first check if there's any input status message
+    if(str[0]!='\0')
+    {
+        curr=0;
+
+    //if there's message, get into the for loop to traverse the string
+    for( char_index =0; char_index<strlen(str); char_index++)
+    {
+        //update the starting position of character
+        x_start = start_point + FONT_WIDTH*char_index;
+
+        //get the current character
+        temp=str[curr];
+
+        //traverse a character
+        for(i=0;i<FONT_HEIGHT;i++)
+        {
+            //get one row of ASCII character
+            cur_char=font_data[temp][i];
+            
+            for(j=7;j>=0;j--)
+            {
+                //bitwise checking of each bit in ASCII char
+                if((cur_char & TEST_LAST_BIT)==TEST_LAST_BIT)
+                {
+                    //calculate the offset in the buffer and then color that pixel with font color
+                    buf[128*i+j+FONT_WIDTH*curr]=FONT_COLOR;  //128 is the width of the floating buffer
                 }
                 //right shift character 1 bit to prepare next comparison
                 cur_char=cur_char>>1;

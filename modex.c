@@ -528,6 +528,17 @@ show_screen ()
     OUTW (0x03D4, ((target_img & 0x00FF) << 8) | 0x0D);
 }
 
+/*
+ * show_status_bar
+ *   DESCRIPTION: Show the logical view window on the video display for the status bar
+ *   INPUTS: none
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECTS: copies from the build buffer to video memory;
+ *                 shifts the VGA display source to point to the new image
+ */   
+
+
 void show_status_bar(char * msg, const char* typing, int level){
   unsigned char buf[STATUS_BAR_SIZE];
 
@@ -630,9 +641,8 @@ draw_full_block (int pos_x, int pos_y, unsigned char* blk)
     }
 }
 
-
 /*
- * draw_full_block
+ * draw_full_floating
  *   DESCRIPTION: Draw a BLOCK_X_DIM x BLOCK_Y_DIM block at absolute 
  *                coordinates.  Mask any portion of the block not inside 
  *                the logical view window.
@@ -642,6 +652,72 @@ draw_full_block (int pos_x, int pos_y, unsigned char* blk)
  *   OUTPUTS: none
  *   RETURN VALUE: none
  *   SIDE EFFECTS: draws into the build buffer
+ */   
+void
+draw_full_floating (int pos_x, int pos_y, unsigned char* blk)
+{
+    int dx, dy;          /* loop indices for x and y traversal of block */
+    int x_left, x_right; /* clipping limits in horizontal dimension     */
+    int y_top, y_bottom; /* clipping limits in vertical dimension       */
+
+    /* If block is completely off-screen, we do nothing. */
+    if (pos_x + FLOATING_X_DIM <= show_x || pos_x >= show_x + SCROLL_X_DIM ||
+        pos_y + BLOCK_Y_DIM <= show_y || pos_y >= show_y + SCROLL_Y_DIM)
+  return;
+   
+    /* Clip any pixels falling off the left side of screen. */
+    if ((x_left = show_x - pos_x) < 0)
+        x_left = 0;
+    /* Clip any pixels falling off the right side of screen. */
+    if ((x_right = show_x + SCROLL_X_DIM - pos_x) > FLOATING_X_DIM)
+        x_right = FLOATING_X_DIM;
+    /* Skip the first x_left pixels in both screen position and block data. */
+    pos_x += x_left;
+    blk += x_left;
+    /* 
+     * Adjust x_right to hold the number of pixels to be drawn, and x_left
+     * to hold the amount to skip between rows in the block, which is the
+     * sum of the original left clip and (FLOATING_X_DIM - the original right 
+     * clip).
+     */
+    x_right -= x_left;
+    x_left = FLOATING_X_DIM - x_right; 
+
+    /* Clip any pixels falling off the top of the screen. */
+    if ((y_top = show_y - pos_y) < 0)
+        y_top = 0;
+    /* Clip any pixels falling off the bottom of the screen. */
+    if ((y_bottom = show_y + SCROLL_Y_DIM - pos_y) > BLOCK_Y_DIM)
+        y_bottom = BLOCK_Y_DIM;
+    /* 
+     * Skip the first y_left pixel in screen position and the first
+     * y_left rows of pixels in the block data.
+     */
+    pos_y += y_top;
+    blk += y_top * FLOATING_X_DIM;
+    /* Adjust y_bottom to hold the number of pixel rows to be drawn. */
+    y_bottom -= y_top;
+
+    /* Draw the clipped image. */
+    for (dy = 0; dy < y_bottom; dy++, pos_y++) {
+  for (dx = 0; dx < x_right; dx++, pos_x++, blk++)
+      *(img3 + (pos_x >> 2) + pos_y * SCROLL_X_WIDTH +
+        (3 - (pos_x & 3)) * SCROLL_SIZE) = *blk;
+  pos_x -= x_right;
+  blk += x_left;
+    }
+}
+
+
+/*
+ * save_old_floor
+ *   DESCRIPTION: save the old floor the the buffer in the main thread
+ *   INPUTS: (pos_x,pos_y) -- coordinates of upper left corner of block
+ *           blk -- image data for block (one byte per pixel, as a C array
+ *                  of dimensions [BLOCK_Y_DIM][FLOATING_X_DIM])
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECTS: draws into the main buffer
  */   
 void
 save_old_floor (int pos_x, int pos_y, unsigned char* blk)
@@ -698,6 +774,70 @@ save_old_floor (int pos_x, int pos_y, unsigned char* blk)
     }
 }
 
+/*
+ * save_old_floating
+ *   DESCRIPTION: save the old floor the the buffer in the main thread
+ *   INPUTS: (pos_x,pos_y) -- coordinates of upper left corner of block
+ *           blk -- image data for block (one byte per pixel, as a C array
+ *                  of dimensions [BLOCK_Y_DIM][FLOATING_X_DIM])
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECTS: draws into the main buffer
+ */   
+void
+save_old_floating (int pos_x, int pos_y, unsigned char* blk)
+{
+    int dx, dy;          /* loop indices for x and y traversal of block */
+    int x_left, x_right; /* clipping limits in horizontal dimension     */
+    int y_top, y_bottom; /* clipping limits in vertical dimension       */
+
+    /* If block is completely off-screen, we do nothing. */
+    if (pos_x + FLOATING_X_DIM <= show_x || pos_x >= show_x + SCROLL_X_DIM ||
+        pos_y + BLOCK_Y_DIM <= show_y || pos_y >= show_y + SCROLL_Y_DIM)
+  return;
+   
+    /* Clip any pixels falling off the left side of screen. */
+    if ((x_left = show_x - pos_x) < 0)
+        x_left = 0;
+    /* Clip any pixels falling off the right side of screen. */
+    if ((x_right = show_x + SCROLL_X_DIM - pos_x) > FLOATING_X_DIM)
+        x_right = FLOATING_X_DIM;
+    /* Skip the first x_left pixels in both screen position and block data. */
+    pos_x += x_left;
+    blk += x_left;
+    /* 
+     * Adjust x_right to hold the number of pixels to be drawn, and x_left
+     * to hold the amount to skip between rows in the block, which is the
+     * sum of the original left clip and (FLOATING_X_DIM - the original right 
+     * clip).
+     */
+    x_right -= x_left;
+    x_left = FLOATING_X_DIM - x_right; 
+
+    /* Clip any pixels falling off the top of the screen. */
+    if ((y_top = show_y - pos_y) < 0)
+        y_top = 0;
+    /* Clip any pixels falling off the bottom of the screen. */
+    if ((y_bottom = show_y + SCROLL_Y_DIM - pos_y) > BLOCK_Y_DIM)
+        y_bottom = BLOCK_Y_DIM;
+    /* 
+     * Skip the first y_left pixel in screen position and the first
+     * y_left rows of pixels in the block data.
+     */
+    pos_y += y_top;
+    blk += y_top * FLOATING_X_DIM;
+    /* Adjust y_bottom to hold the number of pixel rows to be drawn. */
+    y_bottom -= y_top;
+
+    /* Draw the clipped image. */
+    for (dy = 0; dy < y_bottom; dy++, pos_y++) {
+  for (dx = 0; dx < x_right; dx++, pos_x++, blk++)
+      *blk = *(img3 + (pos_x >> 2) + pos_y * SCROLL_X_WIDTH +
+        (3 - (pos_x & 3)) * SCROLL_SIZE);
+  pos_x -= x_right;
+  blk += x_left;
+    }
+}
 
 /* 
  * The functions inside the preprocessor block below rely on functions
@@ -1029,9 +1169,9 @@ fill_palette ()
 
 
 /*
- * fill_palette
- *   DESCRIPTION: Fill VGA palette with necessary colors for the maze game.
- *                Only the first 64 (of 256) colors are written.
+ * fill_my_palette
+ *   DESCRIPTION: Change VGA palette with necessary colors for the maze game.
+ *   according to the level the game is currently in. 
  *   INPUTS: none
  *   OUTPUTS: none
  *   RETURN VALUE: none
@@ -1189,6 +1329,7 @@ copy_image (unsigned char* img, unsigned short scr_addr)
     asm volatile (
         "cld                                                 ;"
        	"movl $14560,%%ecx                                   ;"
+        // 14560 = 320 * 182 /4 which is the size of game screen
        	"rep movsb    # copy ECX bytes from M[ESI] to M[EDI]  "
       : /* no outputs */
       : "S" (img), "D" (mem_image + scr_addr) 
@@ -1217,6 +1358,7 @@ copy_status_bar(unsigned char* img, unsigned short scr_addr)
     asm volatile (
         "cld                                                 ;"
         "movl $1440, %%ecx                                   ;"
+        // 1440 = 18 * 320 / 4 which is the size of status bar
         "rep movsb    # copy ECX bytes from M[ESI] to M[EDI]  "
       : /* no outputs */
       : "S" (img), "D" (mem_image + scr_addr) 

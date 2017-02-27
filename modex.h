@@ -132,6 +132,7 @@ extern void show_status_bar(char * msg, const char* typing, int level);
 /* clear the video memory in mode X */
 extern void clear_screens ();
 
+/* change palette colors*/
 extern void fill_my_palette (int level);
 
 /*
@@ -141,8 +142,18 @@ extern void fill_my_palette (int level);
  */
 extern void draw_full_block (int pos_x, int pos_y, unsigned char* blk);
 
+/*
+ * draw a 12x12 block with upper left corner at logical position
+ * (pos_x,pos_y); any part of the block outside of the logical view window
+ * is clipped (cut off and not drawn)
+ */
+extern void draw_full_floating (int pos_x, int pos_y, unsigned char* blk);
+
 /*save old floor value to my buffer*/
 extern void save_old_floor (int pos_x, int pos_y, unsigned char* blk);
+
+/*save old floor value before drawing the floating chars*/
+extern void save_old_floating (int pos_x, int pos_y, unsigned char* blk);
 
 /* draw a horizontal line at vertical pixel y within the logical view window */
 extern int draw_horiz_line (int y);

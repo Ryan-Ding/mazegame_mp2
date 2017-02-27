@@ -58,6 +58,14 @@
 #define RIGHT 67
 #define LEFT 68
 
+#define APPLE 1
+#define GRAPE 2
+#define PEACH 3
+#define STRAWBERY 4
+#define BANANA 5
+#define WATERMELON 6
+#define DEW 7
+
 
 /*
  * If NDEBUG is not defined, we execute sanity checks to make sure that
@@ -438,7 +446,11 @@ static void *rtc_thread(void *arg)
 	int i;
 	char str[50];
 	char str1[50];
+	int temp_timer;
 	unsigned char myBuffer[BLOCK_X_DIM*BLOCK_Y_DIM];
+	//unsigned char shadow_buffer[128*12];
+	//unsigned char temp_buffer[128*12];
+	char fruit_name[20];
 	//unsigned char* myFloor = (unsigned char*)blocks[BLOCK_EMPTY];
 	unsigned char savedFloor[BLOCK_X_DIM*BLOCK_Y_DIM];
 	int open[NUM_DIRS];
@@ -449,8 +461,11 @@ static void *rtc_thread(void *arg)
 	// Loop over levels until a level is lost or quit.
 	for (level = 1; (level <= MAX_LEVEL) && (quit_flag == 0); level++)
 	{
+		//fill the palette according to level the game is in
 		fill_my_palette(level);
 		int temp=level;
+		total=0;
+		temp_timer=-500;
 		// Prepare for the level.  If we fail, just let the player win.
 		if (prepare_maze_level (level) != 0)
 			break;
@@ -474,28 +489,44 @@ static void *rtc_thread(void *arg)
 		// Show maze around the player's original position
 		(void)unveil_around_player (play_x, play_y);
 
+		//save the old floor value to the local buffer
 		save_old_floor(play_x, play_y, savedFloor);
 
+					//draw the character image according to the mask
 		   			for(i=0; i<BLOCK_X_DIM*BLOCK_Y_DIM; i++)
 		   			{
 		   				if(get_player_mask(last_dir)[i])
 		   					myBuffer[i]=get_player_block(last_dir)[i];
 		   				else myBuffer[i]=savedFloor[i];
 		   			}
+		   			//fill the buffer in the corresponding locations
 					draw_full_block (play_x, play_y, myBuffer);
 
+		//draw the actual image on the screen
 		show_screen();
+
+		//restore the saved floor from saved buffer
 		draw_full_block (play_x, play_y, savedFloor);
 		//show_screen();
 
+		//use mutex lock to protext critical section
 		(void)pthread_mutex_lock (&mtx);
 
 		//get the messages and inputs to pass write to the status bar
 		int fruitNum = get_fruit_num();
-		sprintf(str, "Level %d   %d fruits   00:00", temp, fruitNum);
+
+		//check weather there should be fruit or fruits
+		if(fruitNum==1)
+		{
+			sprintf(str, "Level %d   %d fruit   00:00", temp, fruitNum);
+
+		}
+		else sprintf(str, "Level %d   %d fruits   00:00", temp, fruitNum);
 		//sprintf(str1, "level %d", typing);
+		//draw the status bar to the screen
 		show_status_bar(str, str, level);
 
+		//unlock to exit the critical section
 		(void)pthread_mutex_unlock (&mtx);
 
 		// get first Periodic Interrupt
@@ -514,9 +545,13 @@ static void *rtc_thread(void *arg)
 			total += ticks;
 
 			pthread_mutex_lock(&mtx);
+			//get the fruit number
 			fruitNum=get_fruit_num();
+
+			//get the time elapsed. 128 is the frequency of ticks
 			myTimer = total/128;
 
+			//get each digit in the timer
 			minute = myTimer/60;
 			minute1 = minute % 10;
 			minute2 = minute / 10;
@@ -526,7 +561,17 @@ static void *rtc_thread(void *arg)
 			second2 = second / 10;
 			//printf("%d\n", level);
 
-			sprintf(str, "Level %d   %d fruits   %d%d:%d%d", temp, fruitNum, minute2, minute1, second2, second1);
+			//check weather there should be fruit or fruits
+
+		if(fruitNum==1)
+		{
+			sprintf(str, "Level %d   %d fruit   %d%d:%d%d", temp, fruitNum, minute2, minute1, second2, second1);
+
+		}
+
+			else sprintf(str, "Level %d   %d fruits   %d%d:%d%d", temp, fruitNum, minute2, minute1, second2, second1);
+
+			//draw the status bar to the screen
 			show_status_bar(str, str1, level);
 			pthread_mutex_unlock(&mtx);
 
@@ -631,15 +676,54 @@ static void *rtc_thread(void *arg)
 						break;
 		   			}
 
+
+		   			//get fruit number 
+		   			int which_fruit = check_for_fruit(play_x / BLOCK_X_DIM, play_y/ BLOCK_Y_DIM);
+		   	//prepare string for each fruit name
+			if(which_fruit != 0)
+			{
+				temp_timer=myTimer;
+				if(which_fruit==1)
+				{
+					sprintf(fruit_name, "an apple!");
+				}
+				else if(which_fruit == 2)
+				{
+					sprintf(fruit_name, "a grape!");
+				}
+				else if(which_fruit == 3)
+				{
+					sprintf(fruit_name, "a peach!");
+				}
+				else if(which_fruit == 4)
+				{
+					sprintf(fruit_name, "a strawberry!");
+				}
+				else if(which_fruit == 5)
+				{
+					sprintf(fruit_name, "a banana!");
+				}
+				else if(which_fruit == 6)
+				{
+					sprintf(fruit_name, "a watermelon!");
+				}
+				else if(which_fruit == 7)
+				{
+					sprintf(fruit_name, "a dew!");
+				}
+			}
+					//save old floor to the local buffer
 		   			save_old_floor(play_x, play_y, savedFloor);
 
+		   			//draw character buffer according to the mask
 		   			for(i=0; i<BLOCK_X_DIM*BLOCK_Y_DIM; i++)
 		   			{
 		   				if(get_player_mask(last_dir)[i])
 		   				{
-		   					if(get_player_block(last_dir)[i]==0x20)
+		   					if(get_player_block(last_dir)[i]==0x20) 
+		   					//the color of the core of character
 		   					{
-		   						myBuffer[i]=total%0x10;
+		   						myBuffer[i]=total%0x10; //change the buffer over time to make it glow
 		   					}
 		   					else
 		   						myBuffer[i]=get_player_block(last_dir)[i];
@@ -651,17 +735,22 @@ static void *rtc_thread(void *arg)
 		   			}	
 					need_redraw = 1;
 				}
+
 				else
 				{
+					//save the old floow to the local buffer
 					save_old_floor(play_x, play_y, savedFloor);
 
 		   			for(i=0; i<BLOCK_X_DIM*BLOCK_Y_DIM; i++)
 		   			{
+		   				//fill up the buffer according to player mask
 		   				if(get_player_mask(last_dir)[i])
 		   				{
 		   					if(get_player_block(last_dir)[i]==0x20)
+		   						//the color of the core of character
 		   					{
 		   						myBuffer[i]=total%0x10;
+		   						//change the buffer over time to make it glow
 		   					}
 		   					else
 		   						myBuffer[i]=get_player_block(last_dir)[i];
@@ -677,9 +766,28 @@ static void *rtc_thread(void *arg)
 
 			if (need_redraw) 
 				{
+					//put the player image on the buffer
 					draw_full_block (play_x, play_y, myBuffer);
+					
+					/*if(myTimer-temp_timer < 5)
+					{
+					save_old_floating(play_x+20, play_y+20, shadow_buffer);
+					for( i=0; i<128*12 ; i++)
+					{
+						temp_buffer[i]=shadow_buffer[i];
+					}
+					fill_floating(fruit_name,shadow_buffer,0,str);
+					draw_full_floating (play_x+20, play_y+20, shadow_buffer);
+					}*/
+					
+					//fill up the video memory according to build buffer
 					show_screen();
 					draw_full_block (play_x, play_y, savedFloor);
+
+					/*if(myTimer-temp_timer < 5)
+					{
+					draw_full_floating(play_x+20, play_y+20,temp_buffer);
+					}*/
 					//show_screen();
 				}	
 			//need_redraw = 0;

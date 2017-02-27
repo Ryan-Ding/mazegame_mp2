@@ -42,6 +42,7 @@
  * sets of bytes in blocks.s
  */
 #define BLOCK_X_DIM 12
+#define FLOATING_X_DIM 128
 #define BLOCK_Y_DIM 12
 
 /* 
