@@ -177,6 +177,8 @@ cmd_t get_buttons ()
     // if no previous button is pressed, then set prev_state to CMD_NONE
     if (arg == NO_BUTTON_PRESSED) 
         prev_state = CMD_NONE;
+
+    //printf("%lu\n", arg);
     
     // switch to deal with corresponding button press
     switch(arg) {
@@ -238,9 +240,7 @@ shutdown_input ()
 void
 display_time_on_tux (int num_seconds)
 {
-#if (USE_TUX_CONTROLLER != 0)
-#error "Tux controller code is not operational yet."
-#endif
+ioctl(fd, TUX_SET_LED, 0x00010005);
 }
 
 
@@ -264,13 +264,15 @@ main ()
     }
     init_input ();
 
+    display_time_on_tux(5);
+
     //unsigned long value = 0x000FABCD; // no decimal point, turn on 1 LED 
     printf("Wat\n");    
     
     while (1) {
         //printf("it gets here\n");
       //  while ((cmd = get_command ()) == last_cmd);
-      while ((cmd = get_buttons ()) == last_cmd);
+    while ((cmd = get_buttons ()) == last_cmd);
     last_cmd = cmd;
     printf ("command issued: %s\n", cmd_name[cmd]);
     if (cmd == CMD_QUIT)

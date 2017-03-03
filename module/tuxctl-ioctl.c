@@ -37,6 +37,36 @@
 #define GET_DOWN_BIT 0x04 
 #define GET_RIGHT_BIT 0x08
 
+ #define TEST_LAST_BIT 0x1
+#define GET_LAST_FOUR 0xF	
+#define NUM_BITS 4
+#define DECIMAL_POINT 0x10
+#define BUTTON_INIT 0x00000000
+#define GET_LAST_EIGHT_BITS 0x000000FF
+	
+#define SHIFT_16 16
+#define SHIFT_24 24	
+#define GET_DECIMAL_POINT 0x0F000000
+#define GET_LED_ON 0x00070000
+#define GET_LED_VALUE 0x0000FFFF
+#define INIT_ZERO 0
+#define EIGHT_BIT 8
+
+#define TWO_TO_ZERO 1
+#define TWO_TO_FIRST 2
+#define TWO_TO_SECOND 4
+#define TWO_TO_THIRD 8
+#define FIRST_TWO_BYTES 2
+#define BITMASK 0xFF 
+
+#define ONE 1
+#define TWO 2
+#define THREE 3
+#define FOUR 4
+#define FIVE 5
+#define SIX 6
+ #define SEVEN 7
+
 char led_buffer[6] = {MTCP_LED_SET, 0x0f, 0, 0, 0, 0};
 
 char search_table[10] = {
@@ -68,6 +98,9 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet)
     unsigned a, b, c;
     char init_buffer;
 
+    char one;
+    char two;
+
     a = packet[0]; /* Avoid printk() sign extending the 8-bit */
     b = packet[1]; /* values when printing them. */
     c = packet[2];
@@ -85,19 +118,20 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet)
 		break;
 
     	case MTCP_BIOC_EVENT:
-    	button = button & 0x00;
+    	button = 0x00000000;
 
     	//right left down up c b a start
-    	button += b & GET_START_BIT;
-    	button += b & GET_A_BIT;
-    	button += b & GET_B_BIT;
-    	button += b & GET_C_BIT;
-    	button += (c & GET_UP_BIT)<<4;
-    	button += (c & GET_DOWN_BIT)<<4;
-    	button += (c & GET_LEFT_BIT)<<4;
-    	button += (c & GET_RIGHT_BIT)<<4;
 
-    	break;
+    	one = b & GET_LAST_FOUR;
+	    two = c & GET_LAST_FOUR;
+
+    	button = one ^ GET_LAST_FOUR;
+    	button = button | (((two ^ GET_LAST_FOUR) & GET_UP_BIT)<<4);
+    	button = button | (((two ^ GET_LAST_FOUR) & GET_DOWN_BIT)<<3);
+    	button = button | (((two ^ GET_LAST_FOUR) & GET_LEFT_BIT)<<5);
+    	button = button | (((two ^ GET_LAST_FOUR) & GET_RIGHT_BIT)<<4);
+		break;
+
 
 
     	default:
@@ -143,10 +177,10 @@ tuxctl_ioctl (struct tty_struct* tty, struct file* file,
 		{
 			return -EINVAL;
 		}
-		printk("%lu",button);
+		//printk("%lu",button);
 
 		//return copy_to_user(arg, &button, sizeof(unsigned long) );
-		return copy_to_user((char*)arg, &button, sizeof(arg));
+		return copy_to_user((unsigned long*)arg, &button, sizeof(unsigned long));
 		//might need modify the type of arg
 
 	case TUX_SET_LED:
