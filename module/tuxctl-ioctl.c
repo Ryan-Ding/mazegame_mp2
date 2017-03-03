@@ -27,6 +27,15 @@
 #include "mtcp.h"
 
 #define DP 0x10
+#define GET_START_BIT 0x01
+#define GET_A_BIT 0x02 
+#define GET_B_BIT 0x04 
+#define GET_C_BIT 0x08
+
+#define GET_UP_BIT 0x01
+#define GET_LEFT_BIT 0x02 
+#define GET_DOWN_BIT 0x04 
+#define GET_RIGHT_BIT 0x08
 
 char led_buffer[6] = {MTCP_LED_SET, 0x0f, 0, 0, 0, 0};
 
@@ -57,10 +66,44 @@ char search_table[10] = {
 void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet)
 {
     unsigned a, b, c;
+    char init_buffer;
 
     a = packet[0]; /* Avoid printk() sign extending the 8-bit */
     b = packet[1]; /* values when printing them. */
     c = packet[2];
+
+    switch(a){
+    	case MTCP_RESET:
+    	init_buffer = MTCP_BIOC_ON;
+		tuxctl_ldisc_put(tty, &init_buffer, 1);
+
+		init_buffer = MTCP_LED_USR;
+		tuxctl_ldisc_put(tty, &init_buffer, 1);
+
+		tuxctl_ldisc_put(tty, led_buffer, 6);
+
+		break;
+
+    	case MTCP_BIOC_EVENT:
+    	button = button & 0x00;
+
+    	//right left down up c b a start
+    	button += b & GET_START_BIT;
+    	button += b & GET_A_BIT;
+    	button += b & GET_B_BIT;
+    	button += b & GET_C_BIT;
+    	button += (c & GET_UP_BIT)<<4;
+    	button += (c & GET_DOWN_BIT)<<4;
+    	button += (c & GET_LEFT_BIT)<<4;
+    	button += (c & GET_RIGHT_BIT)<<4;
+
+    	break;
+
+
+    	default:
+    	return;
+
+    }
 
     /*printk("packet : %x %x %x\n", a, b, c); */
 }
@@ -82,16 +125,29 @@ int
 tuxctl_ioctl (struct tty_struct* tty, struct file* file, 
 	      unsigned cmd, unsigned long arg)
 {
+	char init_buffer;
     switch (cmd) {
 	case TUX_INIT:
-		//tuxctl_send_back();
+		//initialize the tux controllers
+
+		init_buffer = MTCP_BIOC_ON;
+		tuxctl_ldisc_put(tty, &init_buffer, 1);
+
+		init_buffer = MTCP_LED_USR;
+		tuxctl_ldisc_put(tty, &init_buffer, 1);
+
 		return 0;
 
 	case TUX_BUTTONS:
-		if(arg == NULL)
+		if((unsigned long*)arg == NULL)
 		{
 			return -EINVAL;
 		}
+		printk("%lu",button);
+
+		//return copy_to_user(arg, &button, sizeof(unsigned long) );
+		return copy_to_user((char*)arg, &button, sizeof(arg));
+		//might need modify the type of arg
 
 	case TUX_SET_LED:
 		//int led_counter = 1;
@@ -136,7 +192,7 @@ tuxctl_ioctl (struct tty_struct* tty, struct file* file,
 		tuxctl_ldisc_put(tty, led_buffer, 6);
 
 
-
+		return 0;
 
 	case TUX_LED_ACK:
 	case TUX_LED_REQUEST:

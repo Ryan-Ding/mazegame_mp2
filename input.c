@@ -51,6 +51,7 @@
 #include "assert.h"
 #include "input.h"
 #include "maze.h"
+#include "module/tuxctl-ioctl.h"
 
 
 /* set to 1 and compile this file by itself to test functionality */
@@ -60,9 +61,29 @@
 #define USE_TUX_CONTROLLER 0
 
 
+#define ONE_MINUTE 60
+#define TEN_SECONDS 10
+#define SIXTEEN_1st_POWER 16
+#define SIXTEEN_2nd_POWER 256 
+#define SIXTEEN_3rd_POWER 4096
+#define LED_INIT_VALUE 0x040F0000
+#define NO_BUTTON_PRESSED 0xFF
+
+/* cases in the switch statment of get_buttons() */
+#define QUIT 0x00000001
+#define MOVE_LEFT 0x00000002
+#define ENTER 0x00000004
+#define MOVE_RIGHT 0x00000008
+#define UP 0x00000010
+#define DOWN 0x00000020
+#define LEFT 0x00000040
+#define RIGHT 0x00000080
+
+
 /* stores original terminal settings */
 static struct termios tio_orig;
-
+int fd;
+int ldsic_num;
 
 /* 
  * init_input
@@ -80,6 +101,14 @@ int
 init_input ()
 {
     struct termios tio_new;
+
+    fd = open("/dev/ttyS0", O_RDWR | O_NOCTTY);
+    printf("%i\n", fd);
+    ldsic_num = N_MOUSE; 
+    ioctl(fd, TIOCSETD, &ldsic_num);
+    
+    ioctl(fd, TUX_INIT);
+
 
     /*
      * Set non-blocking mode so that stdin can be read without blocking
@@ -128,67 +157,58 @@ init_input ()
  *   RETURN VALUE: command issued by the input controller
  *   SIDE EFFECTS: drains any keyboard input
  */
-cmd_t 
-get_command (dir_t cur_dir)
-{
-    static dir_t prev_cur = DIR_STOP; /* previous direction sent  */
-    static dir_t pushed = DIR_STOP;   /* last direction pushed    */
-#if (USE_TUX_CONTROLLER == 0) /* use keyboard control with arrow keys */
-    static int state = 0;             /* small FSM for arrow keys */
-#endif
-    cmd_t command;
-    int ch;
 
-    /*
-     * If the direction of motion has changed, forget the last
-     * direction pushed.  Otherwise, it remains active.
-     */
-    if (prev_cur != cur_dir) {
-	pushed = DIR_STOP;
-	prev_cur = cur_dir;
+/* 
+ * get_buttons
+ *   DESCRIPTION: Reads a command from the TUX controller.  
+ *   INPUTS: cur_dir -- current direction of motion, quit command
+ *   OUTPUTS: none
+ *   RETURN VALUE: command issued by the TUX controller
+ *   SIDE EFFECTS: drains any TUX input
+ */
+cmd_t get_buttons ()
+{  static cmd_t prev_state;
+
+    cmd_t pushed = CMD_NONE;
+    unsigned long arg;
+    // get the button
+    ioctl(fd, TUX_BUTTONS, &arg);
+    
+    // if no previous button is pressed, then set prev_state to CMD_NONE
+    if (arg == NO_BUTTON_PRESSED) 
+        prev_state = CMD_NONE;
+    
+    // switch to deal with corresponding button press
+    switch(arg) {
+        case QUIT: {
+           pushed = CMD_QUIT;
+           break;
+        }
+        case UP: {
+            pushed = CMD_UP;
+            break;
+        }
+        case DOWN: {
+            pushed = CMD_DOWN;
+            break;
+        }
+        case LEFT: {
+            pushed = CMD_LEFT;
+            break;
+        }   
+        case RIGHT: { 
+            pushed = CMD_RIGHT;
+            break;
+        }   
+        default: {
+            pushed = CMD_NONE;
+            prev_state = CMD_NONE;
+        }   
     }
     
-    /* Read all characters from stdin. */
-    while ((ch = getc (stdin)) != EOF) {
-
-	/* Backquote is used to quit the game. */
-	if (ch == '`')
-	    return CMD_QUIT;
-	
-#if (USE_TUX_CONTROLLER == 0) /* use keyboard control with arrow keys */
-	/*
-	 * Arrow keys deliver the byte sequence 27, 91, and 'A' to 'D';
-	 * we use a small finite state machine to identify them.
-	 */
-	if (ch == 27)
-	    state = 1; 
-	else if (ch == 91 && state == 1)
-	    state = 2;
-	else {
-	    if (state == 2 && ch >= 'A' && ch <= 'D') {
-		switch (ch) {
-		    case 'A': pushed = DIR_UP; break;
-		    case 'B': pushed = DIR_DOWN; break;
-		    case 'C': pushed = DIR_RIGHT; break;
-		    case 'D': pushed = DIR_LEFT; break;
-		}
-	    }
-	    state = 0;
-	}
-#endif
-    }
-
-    /*
-     * Once a direction is pushed, that command remains active
-     * until a turn is taken.
-     */
-    if (pushed == DIR_STOP)
-	command = TURN_NONE;
-    else
-	command = (pushed - cur_dir + NUM_TURNS) % NUM_TURNS;
-
-    return command;
+    return pushed;
 }
+
 
 /* 
  * shutdown_input
@@ -229,12 +249,12 @@ int
 main ()
 {
     cmd_t cmd;
-    dir_t dir = DIR_UP;
-    static const char* const cmd_name[NUM_TURNS] = {
-        "none", "right", "back", "left"
-    };
-    static const char* const dir_names[4] = {
-        "up", "right", "down", "left"
+    cmd_t last_cmd = CMD_NONE;
+    //dir_t dir = DIR_UP;
+   // dir_t temp;
+    static const char* const cmd_name[NUM_COMMANDS] = {
+        "none", "right", "left", "up", "down", 
+    "move left", "enter", "move right", "typed command", "quit"
     };
 
     /* Grant ourselves permission to use ports 0-1023 */
@@ -242,18 +262,27 @@ main ()
 	perror ("ioperm");
 	return 3;
     }
-
     init_input ();
+
+    //unsigned long value = 0x000FABCD; // no decimal point, turn on 1 LED 
+    printf("Wat\n");    
+    
     while (1) {
-	printf ("CURRENT DIRECTION IS %s\n", dir_names[dir]);
-        while ((cmd = get_command (dir)) == TURN_NONE);
-	if (cmd == CMD_QUIT)
-	    break;
-	display_time_on_tux (83);
-	printf ("%s\n", cmd_name[cmd]);
-	dir = (dir + cmd) % 4;
-    }
+        //printf("it gets here\n");
+      //  while ((cmd = get_command ()) == last_cmd);
+      while ((cmd = get_buttons ()) == last_cmd);
+    last_cmd = cmd;
+    printf ("command issued: %s\n", cmd_name[cmd]);
+    if (cmd == CMD_QUIT)
+        break;
+
+}
+
+
     shutdown_input ();
+    
+    close(fd);
+    
     return 0;
 }
 #endif

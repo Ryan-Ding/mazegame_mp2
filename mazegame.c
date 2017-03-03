@@ -448,8 +448,8 @@ static void *rtc_thread(void *arg)
 	char str1[50];
 	int temp_timer;
 	unsigned char myBuffer[BLOCK_X_DIM*BLOCK_Y_DIM];
-	//unsigned char shadow_buffer[128*12];
-	//unsigned char temp_buffer[128*12];
+	unsigned char shadow_buffer[128*12];
+	unsigned char temp_buffer[128*12];
 	char fruit_name[20];
 	//unsigned char* myFloor = (unsigned char*)blocks[BLOCK_EMPTY];
 	unsigned char savedFloor[BLOCK_X_DIM*BLOCK_Y_DIM];
@@ -689,11 +689,11 @@ static void *rtc_thread(void *arg)
 				}
 				else if(which_fruit == 2)
 				{
-					sprintf(fruit_name, "a grape!");
+					sprintf(fruit_name, "grapes!");
 				}
 				else if(which_fruit == 3)
 				{
-					sprintf(fruit_name, "a peach!");
+					sprintf(fruit_name, "peaches!");
 				}
 				else if(which_fruit == 4)
 				{
@@ -723,7 +723,7 @@ static void *rtc_thread(void *arg)
 		   					if(get_player_block(last_dir)[i]==0x20) 
 		   					//the color of the core of character
 		   					{
-		   						myBuffer[i]=total%0x10; //change the buffer over time to make it glow
+		   						myBuffer[i]=myTimer%5; //change the buffer over time to make it glow
 		   					}
 		   					else
 		   						myBuffer[i]=get_player_block(last_dir)[i];
@@ -749,7 +749,7 @@ static void *rtc_thread(void *arg)
 		   					if(get_player_block(last_dir)[i]==0x20)
 		   						//the color of the core of character
 		   					{
-		   						myBuffer[i]=total%0x10;
+		   						myBuffer[i]=myTimer%0x05;
 		   						//change the buffer over time to make it glow
 		   					}
 		   					else
@@ -769,7 +769,7 @@ static void *rtc_thread(void *arg)
 					//put the player image on the buffer
 					draw_full_block (play_x, play_y, myBuffer);
 					
-					/*if(myTimer-temp_timer < 5)
+					if(myTimer-temp_timer < 5)
 					{
 					save_old_floating(play_x+20, play_y+20, shadow_buffer);
 					for( i=0; i<128*12 ; i++)
@@ -778,16 +778,16 @@ static void *rtc_thread(void *arg)
 					}
 					fill_floating(fruit_name,shadow_buffer,0,str);
 					draw_full_floating (play_x+20, play_y+20, shadow_buffer);
-					}*/
+					}
 					
 					//fill up the video memory according to build buffer
 					show_screen();
 					draw_full_block (play_x, play_y, savedFloor);
 
-					/*if(myTimer-temp_timer < 5)
+					if(myTimer-temp_timer < 5)
 					{
 					draw_full_floating(play_x+20, play_y+20,temp_buffer);
-					}*/
+					}
 					//show_screen();
 				}	
 			//need_redraw = 0;

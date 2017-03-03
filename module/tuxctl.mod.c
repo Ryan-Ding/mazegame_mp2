@@ -21,6 +21,7 @@ __attribute__((section("__versions"))) = {
 	{ 0x8e810e6c, "kmalloc_caches" },
 	{ 0xa120d33c, "tty_unregister_ldisc" },
 	{ 0x1b7d4074, "printk" },
+	{ 0x2f287f0d, "copy_to_user" },
 	{ 0x9079fc1f, "kmem_cache_alloc" },
 	{ 0x37a0cba, "kfree" },
 	{ 0x9c976d3a, "tty_register_ldisc" },
@@ -32,4 +33,4 @@ __attribute__((section(".modinfo"))) =
 "depends=";
 
 
-MODULE_INFO(srcversion, "23DA723A45606CF81535F05");
+MODULE_INFO(srcversion, "CC13F6833DE2AD8C3A34BF6");
