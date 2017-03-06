@@ -38,11 +38,6 @@
 
 /* possible commands from input device, whether keyboard or game controller */
 typedef enum {
-    CMD_NONE, CMD_RIGHT, CMD_LEFT, CMD_UP, CMD_DOWN,
-    CMD_MOVE_LEFT, CMD_ENTER, CMD_MOVE_RIGHT,
-    CMD_TYPED,
-    CMD_QUIT,
-    NUM_COMMANDS
 } cmd_t;
 
 /* Initialize the input device. */

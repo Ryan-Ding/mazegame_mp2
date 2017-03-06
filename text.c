@@ -709,7 +709,8 @@ void fill_floating (char * str, unsigned char* buf, int level, const char*room, 
                 if((cur_char & TEST_LAST_BIT)==TEST_LAST_BIT)
                 {
                     //calculate the offset in the buffer and then color that pixel with font color
-                    buf[128*i+j+FONT_WIDTH*curr]=FONT_COLOR;  //128 is the width of the floating buffer
+                    buf[128*i+j+FONT_WIDTH*curr]=floor_buf[128*i+j+FONT_WIDTH*curr]+64;  //128 is the width of the floating buffer
+                    //64 is the offset in my palette to get the transparent color.
                 }
                 //right shift character 1 bit to prepare next comparison
                 cur_char=cur_char>>1;

@@ -61,24 +61,6 @@
 #define USE_TUX_CONTROLLER 0
 
 
-#define ONE_MINUTE 60
-#define TEN_SECONDS 10
-#define SIXTEEN_1st_POWER 16
-#define SIXTEEN_2nd_POWER 256 
-#define SIXTEEN_3rd_POWER 4096
-#define LED_INIT_VALUE 0x040F0000
-#define NO_BUTTON_PRESSED 0xFF
-
-/* cases in the switch statment of get_buttons() */
-#define QUIT 0x00000001
-#define MOVE_LEFT 0x00000002
-#define ENTER 0x00000004
-#define MOVE_RIGHT 0x00000008
-#define UP 0x00000010
-#define DOWN 0x00000020
-#define LEFT 0x00000040
-#define RIGHT 0x00000080
-
 
 /* stores original terminal settings */
 static struct termios tio_orig;
@@ -172,39 +154,6 @@ cmd_t get_buttons ()
     // get the button
     ioctl(fd, TUX_BUTTONS, &arg);
     
-    // if no previous button is pressed, then set prev_state to CMD_NONE
-    if (arg == NO_BUTTON_PRESSED) 
-        prev_state = CMD_NONE;
-
-    //printf("%lu\n", arg);
-    
-    // switch to deal with corresponding button press
-    switch(arg) {
-        case QUIT: {
-           pushed = CMD_QUIT;
-           break;
-        }
-        case UP: {
-            pushed = CMD_UP;
-            break;
-        }
-        case DOWN: {
-            pushed = CMD_DOWN;
-            break;
-        }
-        case LEFT: {
-            pushed = CMD_LEFT;
-            break;
-        }   
-        case RIGHT: { 
-            pushed = CMD_RIGHT;
-            break;
-        }   
-        default: {
-            pushed = CMD_NONE;
-            prev_state = CMD_NONE;
-        }   
-    }
     
     return pushed;
 }
@@ -238,7 +187,7 @@ shutdown_input ()
 void
 display_time_on_tux (int num_seconds)
 {
-        ioctl(fd, TUX_SET_LED, 0x000f1234);
+        ioctl(fd, TUX_SET_LED, 0x00080034);
 }
 
 
@@ -248,39 +197,13 @@ main ()
 {
     cmd_t cmd;
     cmd_t last_cmd = CMD_NONE;
-    //dir_t dir = DIR_UP;
-   // dir_t temp;
-    static const char* const cmd_name[NUM_COMMANDS] = {
-        "none", "right", "left", "up", "down", 
-    "move left", "enter", "move right", "typed command", "quit"
-    };
 
     /* Grant ourselves permission to use ports 0-1023 */
     if (ioperm (0, 1024, 1) == -1) {
 	perror ("ioperm");
 	return 3;
     }
-    init_input ();
     ioctl(fd, TUX_INIT);
-    
-
-    //unsigned long value = 0x000FABCD; // no decimal point, turn on 1 LED 
-    printf("Wat\n");    
-    
-    while (1) {
-        display_time_on_tux(5);
-        //printf("it gets here\n");
-      //  while ((cmd = get_command ()) == last_cmd);
-    while ((cmd = get_buttons ()) == last_cmd);
-    last_cmd = cmd;
-    printf ("command issued: %s\n", cmd_name[cmd]);
-    if (cmd == CMD_QUIT)
-        break;
-
-}
-
-
-    shutdown_input ();
     
     close(fd);
     

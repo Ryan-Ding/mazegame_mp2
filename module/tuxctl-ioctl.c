@@ -107,12 +107,16 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet)
 
     	spin_lock_irqsave(&tuxctl_my_lock, flags);
 
+    	//clear the button
     	button = 0x00000000;
 
     	//right left down up c b a start
 
     	temp1 = b & GET_LAST_FOUR;
 	    temp2 = c & GET_LAST_FOUR;
+
+	    //calculate offset to fill in the button
+	    //variable based on the packets we get
 
     	button = temp1 ^ GET_LAST_FOUR;
     	button = button | (((temp2 ^ GET_LAST_FOUR) & GET_UP_BIT)<<4);
@@ -154,14 +158,13 @@ tuxctl_ioctl (struct tty_struct* tty, struct file* file,
 	      unsigned cmd, unsigned long arg)
 {
 	char init_buffer;
-	//int i;
     switch (cmd) {
 	case TUX_INIT:
 		//initialize the tux controllers
-
 		init_buffer = MTCP_BIOC_ON;
 		tuxctl_ldisc_put(tty, &init_buffer, 1);
 
+		//put led user mode on
 		init_buffer = MTCP_LED_USR;
 		tuxctl_ldisc_put(tty, &init_buffer, 1);
 
@@ -175,6 +178,8 @@ tuxctl_ioctl (struct tty_struct* tty, struct file* file,
 		//printk("%lu",button);
 	spin_lock_irqsave(&tuxctl_my_lock,flags);
 		//return copy_to_user(arg, &button, sizeof(unsigned long) );
+
+		//give back to user the button information
 		return copy_to_user((unsigned long*)arg, &button, sizeof(unsigned long));
 	spin_unlock_irqrestore(&tuxctl_my_lock,flags);
 
@@ -187,46 +192,97 @@ tuxctl_ioctl (struct tty_struct* tty, struct file* file,
 			led_buffer[i]=0x00;
 		}*/
 	//spin_lock_irqsave(&tuxctl_your_lock,flags1);
-		if(arg & 0x00010000)
+		if(arg & 0x00010000)	//check if the first led should be turn on
+								//bit masking for checking
 		{
 			//led_counter++;
-			led_buffer[2] = search_table[arg & 0x0000000f];
-			if(arg & 0x01000000)
+			led_buffer[2] = search_table[arg & 0x0000000f]; //bit masking checking the offset for first button
+			if(arg & 0x01000000)  //bit masking for checking the first decimal point
 			{
 				led_buffer[2]+=DP;
 			}
 
 		}
-		if(arg & 0x00020000)
+
+		//check if the second led should be turn on
+		if(arg & 0x00020000)  //bit masking for checking the second led
 		{
 			//led_counter++;
-			led_buffer[3] = search_table[(arg & 0x000000f0) >> 4];
-			if(arg & 0x02000000)
+			led_buffer[3] = search_table[(arg & 0x000000f0) >> 4];  //bit masking checking the offset for second button
+			if(arg & 0x02000000)  //bit masking for checking the second decimal point
 			{
 				led_buffer[3]+=DP;
 			}
 		}
-		if(arg & 0x00040000)
+
+		//check if the third led should be turn on
+		if(arg & 0x00040000)  //bit masking for checking the second led
 		{
 			//led_counter++;
-			led_buffer[4] = search_table[(arg & 0x00000f00) >> 8];
-			if(arg & 0x04000000)
+			led_buffer[4] = search_table[(arg & 0x00000f00) >> 8];  //bit masking checking the offset for third button
+			if(arg & 0x04000000)  //bit masking for checking the third decimal point
 			{
 				led_buffer[4]+=DP;
 			}
 		}
-		if(arg & 0x00080000)
+
+		//check if the fourth led should be turn on
+		if(arg & 0x00080000)  //bit masking for checking the second led
 		{
 			//led_counter++;
-			led_buffer[5] = search_table[(arg & 0x0000f000) >> 12];
-			if(arg & 0x08000000)
+			led_buffer[5] = search_table[(arg & 0x0000f000) >> 12];  //bit masking checking the offset for fourth button
+			if(arg & 0x08000000) //bit masking for checking the fourth decimal point
 			{
 				led_buffer[5]+=DP;
 			}
 		}
+
+	/*else {
+		counter=1;
+		if(arg & 0x00010000)
+		{
+			counter++;
+			led_buffer[counter] = search_table[arg & 0x0000000f];
+			if(arg & 0x01000000)
+			{
+				led_buffer[counter]+=DP;
+			}
+
+		}
+		if(arg & 0x00020000)
+		{
+			counter++;
+			led_buffer[counter] = search_table[(arg & 0x000000f0) >> 4];
+			if(arg & 0x02000000)
+			{
+				led_buffer[counter]+=DP;
+			}
+		}
+		if(arg & 0x00040000)
+		{
+			counter++;
+			led_buffer[counter] = search_table[(arg & 0x00000f00) >> 8];
+			if(arg & 0x04000000)
+			{
+				led_buffer[counter]+=DP;
+			}
+		}
+		if(arg & 0x00080000)
+		{
+			counter++;
+			led_buffer[counter] = search_table[(arg & 0x0000f000) >> 12];
+			if(arg & 0x08000000)
+			{
+				led_buffer[counter]+=DP;
+			}
+		}
+		led_buffer[1] = ((arg & 0x000f0000) >> 16) & 0x0f;
+		counter++;
+
+	}*/
 		//spin_unlock_irqrestore(&tuxctl_your_lock,flags1);
 
-
+		//check if controller is clead to receive data
 		if(ack==1)
 		{
 		tuxctl_ldisc_put(tty, led_buffer, 6);

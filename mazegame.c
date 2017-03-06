@@ -385,14 +385,20 @@ static void *tux_thread(void *arg)
 	while (winner == 0)
 	{		
 			unsigned long button;
+
+			//check if the game is over
 			if(quit_flag == 1)
 			break;
+
+			//get the button status from controller
 		    ioctl(fd_tux, TUX_BUTTONS, &button);
 
-					pthread_mutex_lock(&mtx);
+					pthread_mutex_lock(&mtx); //critical section
 					switch(button)
 					{
 						//printf("%lu\n",button);
+
+						//change next_dir according to the button pressed
 						case MOVE_UP:
 							next_dir = DIR_UP;
 							break;
@@ -604,7 +610,7 @@ static void *rtc_thread(void *arg)
 			fruitNum=get_fruit_num();
 
 			//get the time elapsed. 128 is the frequency of ticks
-			myTimer = total/32;
+			myTimer = total/128;
 
 			//get each digit in the timer
 			minute = myTimer/60;
@@ -743,6 +749,9 @@ static void *rtc_thread(void *arg)
 					if(which_fruit != 0)
 					{
 						temp_timer=myTimer;
+
+						//print out the corresponding fruit name
+						//according to fruit number we get.
 						if(which_fruit==1)
 						{
 							sprintf(fruit_name, "an apple!");
@@ -826,6 +835,7 @@ static void *rtc_thread(void *arg)
 
 			if (need_redraw) 
 				{
+					//check for game margin on the top
 					if(play_y-20 <= 0)
 					{
 						draw_y = play_y+20;
@@ -833,6 +843,7 @@ static void *rtc_thread(void *arg)
 					else
 						draw_y = play_y-20;
 
+					// check for the game margin on the left
 					if((signed int)(play_x - 8 * strlen(fruit_name)) <= 8)
 					{
 						draw_x = 8;
@@ -845,25 +856,32 @@ static void *rtc_thread(void *arg)
 					//put the player image on the buffer
 					draw_full_block (play_x, play_y, myBuffer);
 					
+					//timer for 5 seconds
 					if(myTimer-temp_timer < 5)
 					{
+						//save the old floor to my buffer
 					save_old_floating(draw_x, draw_y, shadow_buffer);
-					for( i=0; i<128*16 ; i++)
+					for( i=0; i<128*16 ; i++) //128*16 is the size of my floating block
 					{
+						//copy the saved floor buffer
 						temp_buffer[i]=shadow_buffer[i];
 					}
+					//transform the text to image
 					fill_floating(fruit_name,shadow_buffer,0,str, temp_buffer);
 					
+					//put the buffer of image on the screen
 					draw_full_floating (draw_x, draw_y, shadow_buffer);
 					
 					}
 					
 					//fill up the video memory according to build buffer
 					show_screen();
+					//restore saved floor
 					draw_full_block (play_x, play_y, savedFloor);
 
 					if(myTimer-temp_timer < 5)
 					{
+						//restore saved floating floor
 					draw_full_floating(draw_x, draw_y,temp_buffer);
 					}
 					//show_screen();
@@ -887,7 +905,7 @@ int main()
 {
 	int ret;
    	struct termios tio_new;
-	unsigned long update_rate = 32; /* in Hz */
+	unsigned long update_rate = 128; /* in Hz */
 
 	pthread_t tid1;
 	pthread_t tid2;
