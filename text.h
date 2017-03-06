@@ -45,5 +45,5 @@ extern unsigned char font_data[256][16];
 
 extern void fill_buffer(char * str, unsigned char * buf, int level, const char* room);
 
-extern void fill_floating(char * str, unsigned char * buf, int level, const char* room);
+extern void fill_floating(char * str, unsigned char * buf, int level, const char* room, unsigned char * floor_buf);
 #endif /* TEXT_H */

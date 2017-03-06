@@ -662,7 +662,7 @@ draw_full_floating (int pos_x, int pos_y, unsigned char* blk)
 
     /* If block is completely off-screen, we do nothing. */
     if (pos_x + FLOATING_X_DIM <= show_x || pos_x >= show_x + SCROLL_X_DIM ||
-        pos_y + BLOCK_Y_DIM <= show_y || pos_y >= show_y + SCROLL_Y_DIM)
+        pos_y + FLOATING_Y_DIM <= show_y || pos_y >= show_y + SCROLL_Y_DIM)
   return;
    
     /* Clip any pixels falling off the left side of screen. */
@@ -687,8 +687,8 @@ draw_full_floating (int pos_x, int pos_y, unsigned char* blk)
     if ((y_top = show_y - pos_y) < 0)
         y_top = 0;
     /* Clip any pixels falling off the bottom of the screen. */
-    if ((y_bottom = show_y + SCROLL_Y_DIM - pos_y) > BLOCK_Y_DIM)
-        y_bottom = BLOCK_Y_DIM;
+    if ((y_bottom = show_y + SCROLL_Y_DIM - pos_y) > FLOATING_Y_DIM)
+        y_bottom = FLOATING_Y_DIM;
     /* 
      * Skip the first y_left pixel in screen position and the first
      * y_left rows of pixels in the block data.
@@ -793,7 +793,7 @@ save_old_floating (int pos_x, int pos_y, unsigned char* blk)
 
     /* If block is completely off-screen, we do nothing. */
     if (pos_x + FLOATING_X_DIM <= show_x || pos_x >= show_x + SCROLL_X_DIM ||
-        pos_y + BLOCK_Y_DIM <= show_y || pos_y >= show_y + SCROLL_Y_DIM)
+        pos_y + FLOATING_Y_DIM <= show_y || pos_y >= show_y + SCROLL_Y_DIM)
   return;
    
     /* Clip any pixels falling off the left side of screen. */
@@ -818,8 +818,8 @@ save_old_floating (int pos_x, int pos_y, unsigned char* blk)
     if ((y_top = show_y - pos_y) < 0)
         y_top = 0;
     /* Clip any pixels falling off the bottom of the screen. */
-    if ((y_bottom = show_y + SCROLL_Y_DIM - pos_y) > BLOCK_Y_DIM)
-        y_bottom = BLOCK_Y_DIM;
+    if ((y_bottom = show_y + SCROLL_Y_DIM - pos_y) > FLOATING_Y_DIM)
+        y_bottom = FLOATING_Y_DIM;
     /* 
      * Skip the first y_left pixel in screen position and the first
      * y_left rows of pixels in the block data.

@@ -106,8 +106,6 @@ init_input ()
     printf("%i\n", fd);
     ldsic_num = N_MOUSE; 
     ioctl(fd, TIOCSETD, &ldsic_num);
-    
-    ioctl(fd, TUX_INIT);
 
 
     /*
@@ -240,7 +238,7 @@ shutdown_input ()
 void
 display_time_on_tux (int num_seconds)
 {
-ioctl(fd, TUX_SET_LED, 0x00010005);
+        ioctl(fd, TUX_SET_LED, 0x000f1234);
 }
 
 
@@ -263,13 +261,14 @@ main ()
 	return 3;
     }
     init_input ();
-
-    display_time_on_tux(5);
+    ioctl(fd, TUX_INIT);
+    
 
     //unsigned long value = 0x000FABCD; // no decimal point, turn on 1 LED 
     printf("Wat\n");    
     
     while (1) {
+        display_time_on_tux(5);
         //printf("it gets here\n");
       //  while ((cmd = get_command ()) == last_cmd);
     while ((cmd = get_buttons ()) == last_cmd);

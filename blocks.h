@@ -44,6 +44,7 @@
 #define BLOCK_X_DIM 12
 #define FLOATING_X_DIM 128
 #define BLOCK_Y_DIM 12
+#define FLOATING_Y_DIM 16
 
 /* 
  * CAUTION!  The directions below are listed clockwise to allow the use

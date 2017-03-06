@@ -39,7 +39,7 @@
 #include "modex.h"
 
 #define BACKGROUND_COLOR 7
-#define FONT_COLOR 32
+#define FONT_COLOR 35
 #define BACKGROUND_COLOR2 10
 #define BACKGROUND_COLOR3 20
 #define TEST_LAST_BIT 0x01
@@ -669,7 +669,7 @@ void fill_buffer (char * str, unsigned char* buf, int level, const char*room){
 
 
 
-void fill_floating (char * str, unsigned char* buf, int level, const char*room){
+void fill_floating (char * str, unsigned char* buf, int level, const char*room, unsigned char* floor_buf){
     int start_point =0;
     int x_start;
     int i,j;

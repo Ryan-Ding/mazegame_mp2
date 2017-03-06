@@ -39,6 +39,7 @@
 #include "maze.h"
 #include "modex.h"
 #include "text.h"
+#include "module/tuxctl-ioctl.h"
 
 // New Includes and Defines
 #include <linux/rtc.h>
@@ -51,6 +52,8 @@
 #include <sys/io.h>
 #include <termios.h>
 #include <pthread.h>
+#include <string.h>
+
 
 #define BACKQUOTE 96
 #define UP 65
@@ -65,6 +68,11 @@
 #define BANANA 5
 #define WATERMELON 6
 #define DEW 7
+
+#define MOVE_UP 0x00000010
+#define MOVE_DOWN 0x00000020
+#define MOVE_LEFT 0x00000040
+#define MOVE_RIGHT 0x00000080
 
 
 /*
@@ -112,7 +120,7 @@ static void move_left (int* xpos);
 static int unveil_around_player (int play_x, int play_y);
 static void *rtc_thread(void *arg);
 static void *keyboard_thread(void *arg);
-
+static void *tux_thread(void *arg);
 
 /* 
  * prepare_maze_level
@@ -354,11 +362,55 @@ int winner= 0;
 int next_dir = UP;
 int play_x, play_y, last_dir, dir;
 int move_cnt = 0;
-int fd;
+int fd, fd_tux;
 unsigned long data;
 static struct termios tio_orig;
 static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
+
+/*
+ * tux_thread
+ *   DESCRIPTION: Thread that handles tux controller inputs
+ *   INPUTS: none
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECTS: none
+ */
+static void *tux_thread(void *arg)
+{
+	//ioctl(fd_tux, TUX_INIT, 0 );
+	//char key;
+	//int state = 0;
+	// Break only on win or quit input - '`'
+	while (winner == 0)
+	{		
+			unsigned long button;
+			if(quit_flag == 1)
+			break;
+		    ioctl(fd_tux, TUX_BUTTONS, &button);
+
+					pthread_mutex_lock(&mtx);
+					switch(button)
+					{
+						//printf("%lu\n",button);
+						case MOVE_UP:
+							next_dir = DIR_UP;
+							break;
+						case MOVE_DOWN:
+							next_dir = DIR_DOWN;
+							break;
+						case MOVE_RIGHT:
+							next_dir = DIR_RIGHT;
+							break;
+						case MOVE_LEFT:
+							next_dir = DIR_LEFT;
+							break;
+					}
+					pthread_mutex_unlock(&mtx);
+	}
+
+	return 0;
+}
 
 /*
  * keyboard_thread
@@ -374,7 +426,8 @@ static void *keyboard_thread(void *arg)
 	int state = 0;
 	// Break only on win or quit input - '`'
 	while (winner == 0)
-	{		
+	{
+		if (quit_flag == 1) { break; }		
 		// Get Keyboard Input
 		key = getc(stdin);
 		
@@ -440,16 +493,18 @@ static int total = 0;
  */
 static void *rtc_thread(void *arg)
 {
+	unsigned long tux_display;
 	int ticks = 0;
 	int level;
 	int ret;
 	int i;
+	int draw_y, draw_x;
 	char str[50];
 	char str1[50];
 	int temp_timer;
 	unsigned char myBuffer[BLOCK_X_DIM*BLOCK_Y_DIM];
-	unsigned char shadow_buffer[128*12];
-	unsigned char temp_buffer[128*12];
+	unsigned char shadow_buffer[128*16];
+	unsigned char temp_buffer[128*16];
 	char fruit_name[20];
 	//unsigned char* myFloor = (unsigned char*)blocks[BLOCK_EMPTY];
 	unsigned char savedFloor[BLOCK_X_DIM*BLOCK_Y_DIM];
@@ -544,12 +599,12 @@ static void *rtc_thread(void *arg)
 
 			total += ticks;
 
-			pthread_mutex_lock(&mtx);
+			
 			//get the fruit number
 			fruitNum=get_fruit_num();
 
 			//get the time elapsed. 128 is the frequency of ticks
-			myTimer = total/128;
+			myTimer = total/32;
 
 			//get each digit in the timer
 			minute = myTimer/60;
@@ -563,6 +618,10 @@ static void *rtc_thread(void *arg)
 
 			//check weather there should be fruit or fruits
 
+			tux_display = 0x040f0000 | second1 
+			| second2 << 4 | minute1 << 8 | minute2 << 12;
+			ioctl (fd_tux, TUX_SET_LED, tux_display);
+
 		if(fruitNum==1)
 		{
 			sprintf(str, "Level %d   %d fruit   %d%d:%d%d", temp, fruitNum, minute2, minute1, second2, second1);
@@ -571,6 +630,7 @@ static void *rtc_thread(void *arg)
 
 			else sprintf(str, "Level %d   %d fruits   %d%d:%d%d", temp, fruitNum, minute2, minute1, second2, second1);
 
+			pthread_mutex_lock(&mtx);
 			//draw the status bar to the screen
 			show_status_bar(str, str1, level);
 			pthread_mutex_unlock(&mtx);
@@ -636,7 +696,7 @@ static void *rtc_thread(void *arg)
 					// The direction may not be open to motion...
 			    		//   1) ran into a wall
 			     		//   2) initial direction and its opposite both face walls
-	     				if (dir != DIR_STOP) 
+	     			if (dir != DIR_STOP) 
 					{
 	      					if (!open[dir])
 						{
@@ -650,7 +710,7 @@ static void *rtc_thread(void *arg)
 						{
 	    						move_cnt = BLOCK_X_DIM;
 						}
-    					}
+    				}
 				}
 				// Unlock the mutex
 				pthread_mutex_unlock(&mtx);
@@ -660,58 +720,58 @@ static void *rtc_thread(void *arg)
 	    				// move in chosen direction
 	    				last_dir = dir;
 	    				move_cnt--;	
-	    				switch (dir) 
+	    			switch (dir) 
 					{
-					case DIR_UP:    
-						move_up (&play_y);    
-						break;
-					case DIR_RIGHT: 
-						move_right (&play_x); 
-						break;
-					case DIR_DOWN:  
-						move_down (&play_y);  
-						break;
-					case DIR_LEFT:  
-						move_left (&play_x);  
-						break;
+						case DIR_UP:    
+							move_up (&play_y);    
+							break;
+						case DIR_RIGHT: 
+							move_right (&play_x); 
+							break;
+						case DIR_DOWN:  
+							move_down (&play_y);  
+							break;
+						case DIR_LEFT:  
+							move_left (&play_x);  
+							break;
 		   			}
 
 
 		   			//get fruit number 
 		   			int which_fruit = check_for_fruit(play_x / BLOCK_X_DIM, play_y/ BLOCK_Y_DIM);
-		   	//prepare string for each fruit name
-			if(which_fruit != 0)
-			{
-				temp_timer=myTimer;
-				if(which_fruit==1)
-				{
-					sprintf(fruit_name, "an apple!");
-				}
-				else if(which_fruit == 2)
-				{
-					sprintf(fruit_name, "grapes!");
-				}
-				else if(which_fruit == 3)
-				{
-					sprintf(fruit_name, "peaches!");
-				}
-				else if(which_fruit == 4)
-				{
-					sprintf(fruit_name, "a strawberry!");
-				}
-				else if(which_fruit == 5)
-				{
-					sprintf(fruit_name, "a banana!");
-				}
-				else if(which_fruit == 6)
-				{
-					sprintf(fruit_name, "a watermelon!");
-				}
-				else if(which_fruit == 7)
-				{
-					sprintf(fruit_name, "a dew!");
-				}
-			}
+				   	//prepare string for each fruit name
+					if(which_fruit != 0)
+					{
+						temp_timer=myTimer;
+						if(which_fruit==1)
+						{
+							sprintf(fruit_name, "an apple!");
+						}
+						else if(which_fruit == 2)
+						{
+							sprintf(fruit_name, "grapes!");
+						}
+						else if(which_fruit == 3)
+						{
+							sprintf(fruit_name, "peaches!");
+						}
+						else if(which_fruit == 4)
+						{
+							sprintf(fruit_name, "a strawberry!");
+						}
+						else if(which_fruit == 5)
+						{
+							sprintf(fruit_name, "a banana!");
+						}
+						else if(which_fruit == 6)
+						{
+							sprintf(fruit_name, "a watermelon!");
+						}
+						else if(which_fruit == 7)
+						{
+							sprintf(fruit_name, "a dew!");
+						}
+					}
 					//save old floor to the local buffer
 		   			save_old_floor(play_x, play_y, savedFloor);
 
@@ -760,24 +820,42 @@ static void *rtc_thread(void *arg)
 		   						myBuffer[i]=savedFloor[i];
 		   					}
 		   			}	
-					need_redraw = 1;
+					need_redraw = 0;
 				}
 			}
 
 			if (need_redraw) 
 				{
+					if(play_y-20 <= 0)
+					{
+						draw_y = play_y+20;
+					}
+					else
+						draw_y = play_y-20;
+
+					if((signed int)(play_x - 8 * strlen(fruit_name)) <= 8)
+					{
+						draw_x = 8;
+					}
+					else
+					{
+						draw_x = play_x - 8 * strlen(fruit_name);
+					}
+
 					//put the player image on the buffer
 					draw_full_block (play_x, play_y, myBuffer);
 					
 					if(myTimer-temp_timer < 5)
 					{
-					save_old_floating(play_x+20, play_y+20, shadow_buffer);
-					for( i=0; i<128*12 ; i++)
+					save_old_floating(draw_x, draw_y, shadow_buffer);
+					for( i=0; i<128*16 ; i++)
 					{
 						temp_buffer[i]=shadow_buffer[i];
 					}
-					fill_floating(fruit_name,shadow_buffer,0,str);
-					draw_full_floating (play_x+20, play_y+20, shadow_buffer);
+					fill_floating(fruit_name,shadow_buffer,0,str, temp_buffer);
+					
+					draw_full_floating (draw_x, draw_y, shadow_buffer);
+					
 					}
 					
 					//fill up the video memory according to build buffer
@@ -786,7 +864,7 @@ static void *rtc_thread(void *arg)
 
 					if(myTimer-temp_timer < 5)
 					{
-					draw_full_floating(play_x+20, play_y+20,temp_buffer);
+					draw_full_floating(draw_x, draw_y,temp_buffer);
 					}
 					//show_screen();
 				}	
@@ -809,10 +887,21 @@ int main()
 {
 	int ret;
    	struct termios tio_new;
-	unsigned long update_rate = 128; /* in Hz */
+	unsigned long update_rate = 32; /* in Hz */
 
 	pthread_t tid1;
 	pthread_t tid2;
+	pthread_t tid3;
+
+	//Initialize tux control
+	fd_tux=open("/dev/ttyS0", O_RDWR | O_NOCTTY);
+	int ldsic_num = N_MOUSE;
+	ioctl(fd_tux, TIOCSETD, &ldsic_num);
+
+	//initizlize corresponding variables
+	ioctl(fd_tux, TUX_INIT);
+
+
 
 	// Initialize RTC
 	fd = open("/dev/rtc", O_RDONLY, 0);
@@ -859,10 +948,12 @@ int main()
 	// Create the threads
 	pthread_create(&tid1, NULL, rtc_thread, NULL);
 	pthread_create(&tid2, NULL, keyboard_thread, NULL);
+	pthread_create(&tid3, NULL, tux_thread, NULL);
 	
 	// Wait for all the threads to end
 	pthread_join(tid1, NULL);
 	pthread_join(tid2, NULL);
+	pthread_join(tid3, NULL);
 
 	// Shutdown Display
 	clear_mode_X();
@@ -872,6 +963,9 @@ int main()
 		
 	// Close RTC
 	close(fd);
+
+	// Close Tux Controller
+	close(fd_tux);
 
 	// Print outcome of the game
 	if (winner == 1)

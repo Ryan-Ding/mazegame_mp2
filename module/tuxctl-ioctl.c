@@ -37,35 +37,8 @@
 #define GET_DOWN_BIT 0x04 
 #define GET_RIGHT_BIT 0x08
 
- #define TEST_LAST_BIT 0x1
 #define GET_LAST_FOUR 0xF	
-#define NUM_BITS 4
-#define DECIMAL_POINT 0x10
-#define BUTTON_INIT 0x00000000
-#define GET_LAST_EIGHT_BITS 0x000000FF
-	
-#define SHIFT_16 16
-#define SHIFT_24 24	
-#define GET_DECIMAL_POINT 0x0F000000
-#define GET_LED_ON 0x00070000
-#define GET_LED_VALUE 0x0000FFFF
-#define INIT_ZERO 0
-#define EIGHT_BIT 8
-
-#define TWO_TO_ZERO 1
-#define TWO_TO_FIRST 2
-#define TWO_TO_SECOND 4
-#define TWO_TO_THIRD 8
-#define FIRST_TWO_BYTES 2
-#define BITMASK 0xFF 
-
-#define ONE 1
-#define TWO 2
-#define THREE 3
-#define FOUR 4
-#define FIVE 5
-#define SIX 6
- #define SEVEN 7
+ 
 
 char led_buffer[6] = {MTCP_LED_SET, 0x0f, 0, 0, 0, 0};
 
@@ -82,9 +55,16 @@ char search_table[10] = {
 	0xaf,	//9
 };
 
+int ack=1;
+
 
 #define debug(str, ...) \
 	printk(KERN_DEBUG "%s: " str, __FUNCTION__, ## __VA_ARGS__)
+
+static spinlock_t tuxctl_my_lock = SPIN_LOCK_UNLOCKED;
+//static spinlock_t tuxctl_your_lock = SPIN_LOCK_UNLOCKED;
+unsigned long flags;
+//unsigned long flags1;
 
 /************************ Protocol Implementation *************************/
 
@@ -98,8 +78,8 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet)
     unsigned a, b, c;
     char init_buffer;
 
-    char one;
-    char two;
+    char temp1;
+    char temp2;
 
     a = packet[0]; /* Avoid printk() sign extending the 8-bit */
     b = packet[1]; /* values when printing them. */
@@ -107,30 +87,44 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet)
 
     switch(a){
     	case MTCP_RESET:
-    	init_buffer = MTCP_BIOC_ON;
+
+		init_buffer = MTCP_BIOC_ON;
 		tuxctl_ldisc_put(tty, &init_buffer, 1);
 
 		init_buffer = MTCP_LED_USR;
 		tuxctl_ldisc_put(tty, &init_buffer, 1);
 
+		if(ack ==1)
+		{
 		tuxctl_ldisc_put(tty, led_buffer, 6);
+		ack =0;
+		}
+
 
 		break;
 
     	case MTCP_BIOC_EVENT:
+
+    	spin_lock_irqsave(&tuxctl_my_lock, flags);
+
     	button = 0x00000000;
 
     	//right left down up c b a start
 
-    	one = b & GET_LAST_FOUR;
-	    two = c & GET_LAST_FOUR;
+    	temp1 = b & GET_LAST_FOUR;
+	    temp2 = c & GET_LAST_FOUR;
 
-    	button = one ^ GET_LAST_FOUR;
-    	button = button | (((two ^ GET_LAST_FOUR) & GET_UP_BIT)<<4);
-    	button = button | (((two ^ GET_LAST_FOUR) & GET_DOWN_BIT)<<3);
-    	button = button | (((two ^ GET_LAST_FOUR) & GET_LEFT_BIT)<<5);
-    	button = button | (((two ^ GET_LAST_FOUR) & GET_RIGHT_BIT)<<4);
+    	button = temp1 ^ GET_LAST_FOUR;
+    	button = button | (((temp2 ^ GET_LAST_FOUR) & GET_UP_BIT)<<4);
+    	button = button | (((temp2 ^ GET_LAST_FOUR) & GET_DOWN_BIT)<<3);
+    	button = button | (((temp2 ^ GET_LAST_FOUR) & GET_LEFT_BIT)<<5);
+    	button = button | (((temp2 ^ GET_LAST_FOUR) & GET_RIGHT_BIT)<<4);
+    	spin_unlock_irqrestore(&tuxctl_my_lock,flags);
+
 		break;
+
+		case MTCP_ACK:
+		ack = 1;
 
 
 
@@ -160,6 +154,7 @@ tuxctl_ioctl (struct tty_struct* tty, struct file* file,
 	      unsigned cmd, unsigned long arg)
 {
 	char init_buffer;
+	//int i;
     switch (cmd) {
 	case TUX_INIT:
 		//initialize the tux controllers
@@ -178,13 +173,20 @@ tuxctl_ioctl (struct tty_struct* tty, struct file* file,
 			return -EINVAL;
 		}
 		//printk("%lu",button);
-
+	spin_lock_irqsave(&tuxctl_my_lock,flags);
 		//return copy_to_user(arg, &button, sizeof(unsigned long) );
 		return copy_to_user((unsigned long*)arg, &button, sizeof(unsigned long));
+	spin_unlock_irqrestore(&tuxctl_my_lock,flags);
+
 		//might need modify the type of arg
 
 	case TUX_SET_LED:
 		//int led_counter = 1;
+		/*for(i=0; i<6; i++)
+		{
+			led_buffer[i]=0x00;
+		}*/
+	//spin_lock_irqsave(&tuxctl_your_lock,flags1);
 		if(arg & 0x00010000)
 		{
 			//led_counter++;
@@ -198,7 +200,7 @@ tuxctl_ioctl (struct tty_struct* tty, struct file* file,
 		if(arg & 0x00020000)
 		{
 			//led_counter++;
-			led_buffer[3] = search_table[arg & 0x000000f0];
+			led_buffer[3] = search_table[(arg & 0x000000f0) >> 4];
 			if(arg & 0x02000000)
 			{
 				led_buffer[3]+=DP;
@@ -207,7 +209,7 @@ tuxctl_ioctl (struct tty_struct* tty, struct file* file,
 		if(arg & 0x00040000)
 		{
 			//led_counter++;
-			led_buffer[4] = search_table[arg & 0x00000f00];
+			led_buffer[4] = search_table[(arg & 0x00000f00) >> 8];
 			if(arg & 0x04000000)
 			{
 				led_buffer[4]+=DP;
@@ -216,14 +218,20 @@ tuxctl_ioctl (struct tty_struct* tty, struct file* file,
 		if(arg & 0x00080000)
 		{
 			//led_counter++;
-			led_buffer[5] = search_table[arg & 0x0000f000];
+			led_buffer[5] = search_table[(arg & 0x0000f000) >> 12];
 			if(arg & 0x08000000)
 			{
 				led_buffer[5]+=DP;
 			}
 		}
+		//spin_unlock_irqrestore(&tuxctl_your_lock,flags1);
 
+
+		if(ack==1)
+		{
 		tuxctl_ldisc_put(tty, led_buffer, 6);
+		ack=0;
+		}
 
 
 		return 0;
